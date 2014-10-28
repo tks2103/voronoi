@@ -29,9 +29,53 @@ var log = function(thing) {
 
 
 (function(exports) {
+  var Line = function(slope, intercept) {
+    this.slope      = slope;
+    this.intercept  = intercept;
+  };
+
+  Line.prototype = {
+    perpendicularize: function() {
+      if (this.slope == 0) { throw "slope of 0 in perpendicularize"; }
+      this.slope = 1 / (-1.0 * this.slope);
+      return this;
+    },
+
+    shift_intercept: function(point) {
+      this.intercept = (point.y - this.slope * point.x);
+      return this;
+    },
+
+    at: function(x) {
+      return new exports.Point(x, this.slope * x + this.intercept);
+    }
+  };
+
+  exports.Line = Line;
+})(this);
+
+
+(function(exports) {
   var Segment = function(start, end) {
     this.start = start;
     this.end   = end;
+  };
+
+  Segment.prototype = {
+    perpendicularBisector: function() {
+      return new Segment(new exports.Point(this.start.x, this.end.y), new exports.Point(this.end.x, this.start.y));
+    },
+
+    toLine: function() {
+      var slope     = (this.end.y - this.start.y) / (1.0 * (this.end.x - this.start.x));
+      var intersect = (this.end.y - slope * this.end.x);
+      return new exports.Line(slope, intersect);
+    },
+
+    midpoint: function() {
+      return new exports.Point( (this.start.x + this.end.x) / 2.0,
+                                (this.start.y + this.end.y) / 2.0 );
+    }
   };
 
   exports.Segment = Segment;
@@ -185,11 +229,14 @@ var log = function(thing) {
 
     nextStep: function() {
       var nextPoint = this.nextPoint();
-      if(this.sweepLine < -(TOP + TOP / 10.0)) { return; }
+      if(this.sweepLine < -(TOP + TOP / 15.0)) { return; }
       if(!nextPoint) { this.sweepLine -= RESOLUTION; return; }
       if(this.sweepLine - RESOLUTION < nextPoint.y) {
         this.sweepLine = nextPoint.y;
         this.tree.insert(nextPoint);
+        if(this.queue.length <= 2) {
+          this.tree.postTraverse(log);
+        }
         this.queue.shift();
       } else {
         this.sweepLine -= RESOLUTION;
@@ -232,11 +279,11 @@ var log = function(thing) {
       var segments = parabola.segments(-50, 50);
       for(var i = 0; i < segments.length; i++) {
         var segment = segments[i];
-        this.drawLine(segment.start, segment.end);
+        this.drawSegment(segment.start, segment.end);
       }
     },
 
-    drawLine: function(pt1, pt2) {
+    drawSegment: function(pt1, pt2) {
       pt1 = this.localToWorldCoordinates(pt1);
       pt2 = this.localToWorldCoordinates(pt2);
       var ctx = this.getCtx();
@@ -244,6 +291,10 @@ var log = function(thing) {
       ctx.moveTo(pt1.x, pt1.y);
       ctx.lineTo(pt2.x, pt2.y);
       ctx.stroke();
+    },
+
+    drawLine: function(line) {
+      this.drawSegment(line.at(-20), line.at(20));
     },
 
     drawPoint: function(pt) {
@@ -260,15 +311,30 @@ var log = function(thing) {
 var renderer = new window.Renderer(800, 600);
 
 var line = -10;
-var algorithm = new window.Algorithm(10);
+var algorithm = new window.Algorithm(5);
 console.log(algorithm);
+var paused = false;
+
+document.addEventListener('keydown', function(event) {
+  console.log(event.keyCode);
+  if(event.keyCode == 80) {
+    if(paused) { paused = false; }
+    else       { paused = true; }
+  }
+});
 
 var loop = function() {
+  if(paused) {
+    window.requestAnimationFrame(loop);
+    return;
+  }
   algorithm.nextStep();
   var points    = [],
+      segments  = [],
       parabolas = [],
       retrieve  = function(item) {
         if (item.x !== undefined) { points.push(item); }
+        else                      { segments.push(item); }
       };
   algorithm.tree.postTraverse(retrieve);
 
@@ -285,6 +351,11 @@ var loop = function() {
   }
   for(var i = 0; i < points.length; i++) {
     renderer.drawPoint(points[i]);
+  }
+  for(var i = 0; i < segments.length; i++) {
+    var segment = segments[i];
+    var line    = segment.toLine().perpendicularize().shift_intercept(segment.midpoint());
+    renderer.drawLine(line);
   }
   window.requestAnimationFrame(loop);
 }
