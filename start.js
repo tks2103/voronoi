@@ -1,3 +1,5 @@
+'use strict';
+
 var log = function(thing) {
   console.log(thing);
 };
@@ -8,6 +10,15 @@ var log = function(thing) {
     this.y = y;
   };
 
+  Point.distance = function(pt1, pt2) {
+    return Math.sqrt((pt1.x - pt2.x) * (pt1.x - pt2.x) + (pt1.y - pt2.y) * (pt1.y - pt2.y));
+  },
+
+  Point.lowestPoint = function(pt1, pt2) {
+    if(pt1.y < pt2.y) { return pt1; }
+    else              { return pt2; }
+  };
+
   Point.prototype = {
     nearest_vertical_parabola: function(parabolas) {
       var mindist   = 1000,
@@ -16,8 +27,8 @@ var log = function(thing) {
         var parabola  = parabolas[i],
             dist      = parabola.at(this.x) - this.x;
         if(dist < mindist) {
-          mindist = dist;
-          minindex = i;
+          mindist   = dist;
+          minindex  = i;
         }
       }
       return parabolas[i];
@@ -32,6 +43,15 @@ var log = function(thing) {
   var Line = function(slope, intercept) {
     this.slope      = slope;
     this.intercept  = intercept;
+  };
+
+  Line.intersection = function(line1, line2) {
+    if(line2.slope - line1.slope == 0) {
+      throw "parallel lines";
+    }
+    var x = (line1.intercept - line2.intercept) / (line2.slope - line1.slope);
+
+    return line1.at(x);
   };
 
   Line.prototype = {
@@ -138,6 +158,17 @@ var log = function(thing) {
       visitor(this.data);
     },
 
+    visualize: function(str) {
+      str = typeof str !== 'undefined' ? str : "";
+      console.log(this, str, this.data);
+      if(this.left) {
+        this.left.visualize(str + "L");
+      }
+      if(this.right) {
+        this.right.visualize(str + "R");
+      }
+    },
+
     isLeaf: function() {
       if(this.left === null && this.right === null) { return true; }
       else                                          { return false; }
@@ -147,9 +178,9 @@ var log = function(thing) {
       if(this.isLeaf()) {
         return this;
       } else {
-        parabola1 = exports.Parabola.generate_from_directrix_and_focus(point.y, this.data.start);
-        parabola2 = exports.Parabola.generate_from_directrix_and_focus(point.y, this.data.end);
-        nearest_parabola = point.nearest_vertical_parabola([parabola1, parabola2]);
+        var parabola1 = exports.Parabola.generate_from_directrix_and_focus(point.y, this.data.start);
+        var parabola2 = exports.Parabola.generate_from_directrix_and_focus(point.y, this.data.end);
+        var nearest_parabola = point.nearest_vertical_parabola([parabola1, parabola2]);
         if(nearest_parabola == parabola1) {
           return this.left.search(point);
         } else {
@@ -162,7 +193,7 @@ var log = function(thing) {
       this.left   = tree.root.left;
       this.right  = tree.root.right;
       this.data   = tree.root.data;
-    }
+    },
   };
 
   var Tree = function(root) {
@@ -179,12 +210,12 @@ var log = function(thing) {
       return this.root.search(point);
     },
 
-    generate_tree: function(node, point) {
-      leaf1 = new TreeNode(null, null, node.data);
-      leaf2 = new TreeNode(null, null, point);
-      leaf3 = new TreeNode(null, null, node.data);
-      inner_node2 = new TreeNode(leaf2, leaf3, new exports.Segment(point, node.data));
-      inner_node1 = new TreeNode(leaf1, inner_node2, new exports.Segment(node.data, point));
+    generateTree: function(node, point) {
+      var leaf1 = new TreeNode(null, null, node.data);
+      var leaf2 = new TreeNode(null, null, point);
+      var leaf3 = new TreeNode(null, null, node.data);
+      var inner_node2 = new TreeNode(leaf2, leaf3, new exports.Segment(point, node.data));
+      var inner_node1 = new TreeNode(leaf1, inner_node2, new exports.Segment(node.data, point));
       return new Tree(inner_node1);
     },
 
@@ -193,10 +224,26 @@ var log = function(thing) {
         this.root = new TreeNode(null, null, point);
         return;
       }
-      insert_node = this.search(point);
-      new_tree = this.generate_tree(insert_node, point);
-      insert_node.insert(new_tree);
-    }
+      var insertNode = this.search(point);
+      var newTree = this.generateTree(insertNode, point);
+      insertNode.insert(newTree);
+    },
+
+    visualize: function() {
+      this.root.visualize();
+    },
+
+    serialize: function() {
+      this.state = [];
+      this.postTraverse(this.serializerHelper.bind(this));
+      return this.state;
+    },
+
+    serializerHelper: function(item) {
+      if(item.x !== undefined) {
+        this.state.push(item);
+      }
+    },
   };
 
   exports.TreeNode = TreeNode;
@@ -205,26 +252,108 @@ var log = function(thing) {
 
 
 (function(exports) {
-  var TOP = 15;
+  var Event = function(point, type) {
+    this.point = point;
+    this.type = type;
+  };
+
+  Event.convertPoints = function(points) {
+    return points.map(function(point) { return new Event(point, "site") });
+  };
+
+  var PriorityQueue = function(events) {
+    var events = typeof events !== 'undefined' ? events : [];
+    this.queue = events;
+    this.sort();
+  };
+
+  PriorityQueue.prototype = {
+    sort: function() {
+      this.queue.sort(function(a, b) { return b.point.y - a.point.y; });
+    },
+
+    insert: function(event) {
+      this.queue.push(event);
+      this.sort();
+    },
+
+    nextEvent: function() {
+      return this.queue[0];
+    },
+
+    shift: function() {
+      this.queue.shift();
+    },
+  };
+
+  exports.PriorityQueue = PriorityQueue;
+  exports.Event         = Event;
+})(this);
+
+
+(function(exports) {
+  var TOP = 10;
   var RESOLUTION = 0.1;
   var generatePoints = function(num) {
     var points = [];
     for(var i = 0; i < num; i++) {
-      points.push(new Point(Math.random() * TOP * 2 - TOP, Math.random() * TOP * 2 - TOP));
+      points.push(new Point(Math.random() * TOP * 2 - TOP, Math.random() * TOP * 2 - TOP + 5));
     }
     return points;
   };
 
   var Algorithm = function(numPoints) {
-    this.points     = generatePoints(numPoints);
+    var points      = generatePoints(numPoints);
     this.tree       = new exports.Tree();
-    this.queue      = this.points.sort(function(a, b) { return b.y - a.y; });
+    this.queue      = new exports.PriorityQueue(exports.Event.convertPoints(points));
     this.sweepLine  = TOP;
   };
 
   Algorithm.prototype = {
     nextPoint: function() {
-      return this.queue[0];
+      if(!this.queue.nextEvent()) { return; }
+      return this.queue.nextEvent().point;
+    },
+
+
+    potentialCircleEvents: function(events, point) {
+      var potentialEvents = [],
+          length          = events.length;
+      for(var i = 0; i < length; i++) {
+        if(events[i] == point) {
+          if(i >= 2) {
+            potentialEvents.push([events[i-2], events[i-1]]);
+          }
+          if(i <= length - 3) {
+            potentialEvents.push([events[i+1], events[i+2]]);
+          }
+          return potentialEvents;
+        }
+      }
+    },
+
+    checkCircleEvent: function(point) {
+      var potentialEvents = this.potentialCircleEvents(this.tree.serialize(), point),
+          actualEvents    = [];
+      for(var i = 0; i < potentialEvents.length; i++) {
+        var event    = potentialEvents[i],
+            segment1 = new exports.Segment(event[0], point),
+            line1    = segment1.toLine().perpendicularize().shift_intercept(segment1.midpoint()),
+            segment2 = new exports.Segment(event[1], point),
+            line2    = segment2.toLine().perpendicularize().shift_intercept(segment2.midpoint());
+        var intersection = exports.Line.intersection(line1, line2);
+        if(intersection.y < exports.Point.lowestPoint(event[0], event[1]).y) {
+          console.log('converging');
+          var radius = exports.Point.distance(intersection, event[0]);
+          actualEvents.push(new exports.Point(intersection.x, intersection.y - radius));
+          paused = true;
+        } else {
+          console.log('diverging');
+          paused = true;
+        }
+      }
+
+      return actualEvents;
     },
 
     nextStep: function() {
@@ -234,9 +363,7 @@ var log = function(thing) {
       if(this.sweepLine - RESOLUTION < nextPoint.y) {
         this.sweepLine = nextPoint.y;
         this.tree.insert(nextPoint);
-        if(this.queue.length <= 2) {
-          this.tree.postTraverse(log);
-        }
+        var circleEvents = this.checkCircleEvent(nextPoint);
         this.queue.shift();
       } else {
         this.sweepLine -= RESOLUTION;
@@ -311,12 +438,10 @@ var log = function(thing) {
 var renderer = new window.Renderer(800, 600);
 
 var line = -10;
-var algorithm = new window.Algorithm(5);
-console.log(algorithm);
+var algorithm = new window.Algorithm(3);
 var paused = false;
 
 document.addEventListener('keydown', function(event) {
-  console.log(event.keyCode);
   if(event.keyCode == 80) {
     if(paused) { paused = false; }
     else       { paused = true; }
@@ -352,11 +477,15 @@ var loop = function() {
   for(var i = 0; i < points.length; i++) {
     renderer.drawPoint(points[i]);
   }
+  for(var i = 0; i < algorithm.queue.length; i++) {
+    renderer.drawPoint(algorithm.queue[i]);
+  }
   for(var i = 0; i < segments.length; i++) {
     var segment = segments[i];
     var line    = segment.toLine().perpendicularize().shift_intercept(segment.midpoint());
     renderer.drawLine(line);
   }
+  renderer.drawLine(new window.Line(0, algorithm.sweepLine));
   window.requestAnimationFrame(loop);
 }
 
