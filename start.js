@@ -20,18 +20,18 @@ var log = function(thing) {
   };
 
   Point.prototype = {
-    nearest_vertical_parabola: function(parabolas) {
+    nearestVerticalParabola: function(parabolas) {
       var mindist   = 1000,
           minindex  = -1;
       for(var i = 0; i < parabolas.length; i++) {
         var parabola  = parabolas[i],
-            dist      = parabola.at(this.x) - this.x;
+            dist      = parabola.at(this.x) - this.y;
         if(dist < mindist) {
           mindist   = dist;
           minindex  = i;
         }
       }
-      return parabolas[i];
+      return parabolas[minindex];
     }
   }
 
@@ -110,7 +110,40 @@ var log = function(thing) {
     this.RESOLUTION = 0.1;
   };
 
+  Parabola.getIntersections = function(parabola1, parabola2) {
+    var a = parabola1.a - parabola2.a,
+        b = parabola1.b - parabola2.b,
+        c = parabola1.c - parabola2.c;
+
+    if(a == 0) {
+      return [-c / b, -c / b];
+    } else {
+      var discriminant = b * b - 4 * a * c;
+      return [(-b + Math.sqrt(discriminant)) / (2 * a), (-b - Math.sqrt(discriminant)) / (2 * a)];
+    }
+  };
+
+  Parabola.getRightIntersect = function(leftBound, parabola1, parabola2) {
+    var roots     = Parabola.getIntersections(parabola1, parabola2),
+        minRoot   = Math.min(roots[0], roots[1]),
+        maxRoot   = Math.max(roots[0], roots[1]);
+
+    if(minRoot > leftBound) { return minRoot; }
+    else                    { return maxRoot; }
+  };
+
   Parabola.getRegions = function(parabolas) {
+    if(parabolas.length == 1) { return [-50, 50] }
+    var leftBound = -50,
+        regions = [];
+    for(var i = 0; i < parabolas.length - 1; i++) {
+      var intersect = Parabola.getRightIntersect(leftBound, parabolas[i], parabolas[i+1]);
+      regions.push(intersect);
+      leftBound = intersect;
+    }
+    if(regions[0] > -50) { regions.splice(0, 0, -50); }
+    if(regions[regions.length-1] < 50) { regions.push(50); }
+    return regions;
   };
 
   Parabola.generateFromDirectrixAndFocus = function(directrix, focus) {
@@ -189,8 +222,8 @@ var log = function(thing) {
       } else {
         var parabola1 = exports.Parabola.generateFromDirectrixAndFocus(point.y, this.data.start);
         var parabola2 = exports.Parabola.generateFromDirectrixAndFocus(point.y, this.data.end);
-        var nearest_parabola = point.nearest_vertical_parabola([parabola1, parabola2]);
-        if(nearest_parabola == parabola1) {
+        var nearestParabola = point.nearestVerticalParabola([parabola1, parabola2]);
+        if(nearestParabola == parabola1) {
           return this.left.search(point);
         } else {
           return this.right.search(point);
@@ -235,6 +268,18 @@ var log = function(thing) {
     },
 
     search: function(point) {
+      /*
+      var points = this.serialize(),
+          minDist = 10000,
+          minIndex = -1;
+
+      for(var i = 0; i < points.length; i++) {
+        var pt        = points[i],
+            parabola  = window.Parabola.generateFromDirectrixAndFocus(algorithm.sweepLine, pt),
+            dist      = parabola.at(point.x) - point.y;
+      }
+      */
+
       return this.root.search(point);
     },
 
@@ -260,6 +305,8 @@ var log = function(thing) {
       var insertNode = this.search(point),
           newTree = this.generateTree(insertNode, point);
       insertNode.insert(newTree);
+//      this.visualize();
+//      paused = true;
     },
 
     visualize: function() {
@@ -400,10 +447,10 @@ var log = function(thing) {
 
           this.queue.insert(ev);
           node[0].event = ev;
-          paused = true;
+//          paused = true;
         } else {
           console.log('diverging');
-          paused = true;
+//          paused = true;
         }
       }
     },
@@ -421,21 +468,25 @@ var log = function(thing) {
         } else {
           console.log("circle event");
           var nodes  = this.tree.serialize(),
-              node;
+              node, ind;
 
           for(var i = 0; i < nodes.length; i++) {
             if(nodes[i].event == nextEvent) {
               node = nodes[i];
+              ind = i;
             }
           }
 
           this.tree.deleteNode(node);
           this.tree.rebalance();
+          console.log(nodes, ind);
+          if(ind > 0) { nodes[ind-1].event = null; this.checkCircleEvent(nodes[ind-1].data); }
+          if(ind < nodes.length-1) { nodes[ind+1].event = null; this.checkCircleEvent(nodes[ind+1].data); }
           console.log(this.tree.serialize());
-
-          //deleteEvents();
-          //checkCircleEvents();
           paused = true;
+
+          //checkCircleEvents();
+//          paused = true;
         }
         this.queue.shift();
       } else {
@@ -548,8 +599,11 @@ var loop = function() {
   }
 
   renderer.clear();
+  var roots = window.Parabola.getRegions(parabolas);
+  //console.log(parabolas);
   for(var i = 0; i < parabolas.length; i++) {
-    renderer.drawParabola(parabolas[i]);
+//    renderer.drawParabola(parabolas[i]);
+    renderer.drawParabolaSegment(parabolas[i], roots[i], roots[i+1]);
   }
   for(var i = 0; i < points.length; i++) {
     renderer.drawPoint(points[i]);
@@ -561,12 +615,33 @@ var loop = function() {
   for(var i = 0; i < segments.length; i++) {
     var segment = segments[i];
     var line    = segment.toLine().perpendicularize().shift_intercept(segment.midpoint());
-    renderer.drawLine(line);
+ //   renderer.drawLine(line);
   }
   renderer.drawLine(new window.Line(0, algorithm.sweepLine));
+  renderer.drawLine(new window.Line(0, 0));
   window.requestAnimationFrame(loop);
 }
 
-//window.requestAnimationFrame(loop);
+window.requestAnimationFrame(loop);
 
-renderer.drawParabola(new window.Parabola(1, 0 ,0));
+/*
+var parabols = [new window.Parabola(0.05, 0.1, 2.95),
+                new window.Parabola(0.09, 0.26, .722),
+                new window.Parabola(0.05, 0.1, 2.95),
+                new window.Parabola(0.06, -1.37, 8.51),
+                new window.Parabola(0.05, 0.1, 2.95)];
+console.log(window.Parabola.getRegions(parabols))
+var things = window.Parabola.getRegions(parabols);
+console.log(things);
+/*
+renderer.drawParabolaSegment(parabols[0], things[0], things[1]);
+renderer.drawParabolaSegment(parabols[1], things[1], things[2]);
+renderer.drawParabolaSegment(parabols[2], things[2], things[3]);
+renderer.drawParabolaSegment(parabols[3], things[3], things[4]);
+renderer.drawParabolaSegment(parabols[4], things[4], things[5]);
+*/
+/*
+renderer.drawParabola(parabols[1]);
+renderer.drawParabola(parabols[2]);
+renderer.drawParabola(parabols[3]);
+*/
