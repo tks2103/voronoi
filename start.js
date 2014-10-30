@@ -1,9 +1,5 @@
 'use strict';
 
-var log = function(thing) {
-  console.log(thing.data);
-};
-
 (function(exports) {
   var Point = function(x, y) {
     this.x = x;
@@ -190,6 +186,7 @@ var log = function(thing) {
       if(this.data.x !== undefined) { return 'Point'; }
       else                          { return 'Segment'; }
     },
+
     postTraverse: function(visitor) {
       if(this.left) {
         this.left.postTraverse(visitor);
@@ -268,18 +265,6 @@ var log = function(thing) {
     },
 
     search: function(point) {
-      /*
-      var points = this.serialize(),
-          minDist = 10000,
-          minIndex = -1;
-
-      for(var i = 0; i < points.length; i++) {
-        var pt        = points[i],
-            parabola  = window.Parabola.generateFromDirectrixAndFocus(algorithm.sweepLine, pt),
-            dist      = parabola.at(point.x) - point.y;
-      }
-      */
-
       return this.root.search(point);
     },
 
@@ -305,12 +290,12 @@ var log = function(thing) {
       var insertNode = this.search(point),
           newTree = this.generateTree(insertNode, point);
       insertNode.insert(newTree);
-//      this.visualize();
-//      paused = true;
     },
 
     visualize: function() {
-      this.root.visualize();
+      if(this.root) {
+        this.root.visualize();
+      }
     },
 
     serialize: function() {
@@ -320,7 +305,7 @@ var log = function(thing) {
     },
 
     serializerHelper: function(item) {
-      if(item.data.x !== undefined) {
+      if(item.type() == 'Point') {
         this.state.push(item);
       }
     },
@@ -397,7 +382,8 @@ var log = function(thing) {
     for(var i = 0; i < num; i++) {
       points.push(new Point(Math.random() * TOP * 2 - TOP, Math.random() * TOP * 2 - TOP + 5));
     }
-    return points;
+    return [new Point(4.09, -1.46), new Point(-1.24, 6.45), new Point(-0.07, -.937)];
+//    return points;
   };
 
   var Algorithm = function(numPoints) {
@@ -430,16 +416,19 @@ var log = function(thing) {
     },
 
     checkCircleEvent: function(point) {
-      var nodes   = this.tree.serialize(),
-          potentialNodes = this.potentialCircleNodes(nodes, point);
+      var nodes           = this.tree.serialize(),
+          potentialNodes  = this.potentialCircleNodes(nodes, point);
       for(var i = 0; i < potentialNodes.length; i++) {
-        var node     = potentialNodes[i],
-            segment1 = new exports.Segment(node[0].data, point),
-            line1    = segment1.toLine().perpendicularize().shift_intercept(segment1.midpoint()),
-            segment2 = new exports.Segment(node[1].data, point),
-            line2    = segment2.toLine().perpendicularize().shift_intercept(segment2.midpoint());
+        var node        = potentialNodes[i],
+            segment1    = new exports.Segment(node[0].data, point),
+            line1       = segment1.toLine().perpendicularize().shift_intercept(segment1.midpoint()),
+            parabola1   = window.Parabola.generateFromDirectrixAndFocus(point.y, node[0].data),
+            segment2    = new exports.Segment(node[1].data, point),
+            line2       = segment2.toLine().perpendicularize().shift_intercept(segment2.midpoint()),
+            parabola2   = window.Parabola.generateFromDirectrixAndFocus(point.y, node[1].data);
         var intersection = exports.Line.intersection(line1, line2);
-        if(intersection.y < exports.Point.lowestPoint(node[0].data, node[1].data).y) {
+
+        if(intersection.y < parabola1.at(intersection.x) && intersection.y < parabola2.at(intersection.x)) {
           console.log('converging');
           var radius  = exports.Point.distance(intersection, node[0].data);
           var point   = new exports.Point(intersection.x, intersection.y - radius),
@@ -447,10 +436,8 @@ var log = function(thing) {
 
           this.queue.insert(ev);
           node[0].event = ev;
-//          paused = true;
         } else {
           console.log('diverging');
-//          paused = true;
         }
       }
     },
@@ -459,6 +446,7 @@ var log = function(thing) {
       var nextEvent = this.nextEvent();
       if(this.sweepLine < -(TOP + TOP / 15.0)) { return; }
       if(!nextEvent) { this.sweepLine -= RESOLUTION; return; }
+
       var nextPoint = nextEvent.point;
       if(this.sweepLine - RESOLUTION < nextPoint.y) {
         this.sweepLine = nextPoint.y;
@@ -466,7 +454,6 @@ var log = function(thing) {
           this.tree.insert(nextPoint);
           this.checkCircleEvent(nextPoint);
         } else {
-          console.log("circle event");
           var nodes  = this.tree.serialize(),
               node, ind;
 
@@ -477,16 +464,15 @@ var log = function(thing) {
             }
           }
 
+          this.tree.visualize();
+          paused = true;
           this.tree.deleteNode(node);
           this.tree.rebalance();
-          console.log(nodes, ind);
+          this.tree.visualize();
+          paused = true;
           if(ind > 0) { nodes[ind-1].event = null; this.checkCircleEvent(nodes[ind-1].data); }
           if(ind < nodes.length-1) { nodes[ind+1].event = null; this.checkCircleEvent(nodes[ind+1].data); }
-          console.log(this.tree.serialize());
-          paused = true;
 
-          //checkCircleEvents();
-//          paused = true;
         }
         this.queue.shift();
       } else {
@@ -563,11 +549,9 @@ var log = function(thing) {
 })(this);
 
 
-var renderer = new window.Renderer(800, 600);
-
-var line = -10;
-var algorithm = new window.Algorithm(3);
-var paused = false;
+var renderer = new window.Renderer(800, 600),
+    algorithm = new window.Algorithm(3),
+    paused = false;
 
 document.addEventListener('keydown', function(event) {
   if(event.keyCode == 80) {
@@ -582,6 +566,8 @@ var loop = function() {
     return;
   }
   algorithm.nextStep();
+
+  //Generate Render Objects
   var points    = [],
       segments  = [],
       parabolas = [],
@@ -598,9 +584,10 @@ var loop = function() {
         parabolas.push(parabola);
   }
 
-  renderer.clear();
   var roots = window.Parabola.getRegions(parabolas);
-  //console.log(parabolas);
+
+  //Render
+  renderer.clear();
   for(var i = 0; i < parabolas.length; i++) {
 //    renderer.drawParabola(parabolas[i]);
     renderer.drawParabolaSegment(parabolas[i], roots[i], roots[i+1]);
@@ -615,7 +602,7 @@ var loop = function() {
   for(var i = 0; i < segments.length; i++) {
     var segment = segments[i];
     var line    = segment.toLine().perpendicularize().shift_intercept(segment.midpoint());
- //   renderer.drawLine(line);
+   // renderer.drawLine(line);
   }
   renderer.drawLine(new window.Line(0, algorithm.sweepLine));
   renderer.drawLine(new window.Line(0, 0));
@@ -623,25 +610,3 @@ var loop = function() {
 }
 
 window.requestAnimationFrame(loop);
-
-/*
-var parabols = [new window.Parabola(0.05, 0.1, 2.95),
-                new window.Parabola(0.09, 0.26, .722),
-                new window.Parabola(0.05, 0.1, 2.95),
-                new window.Parabola(0.06, -1.37, 8.51),
-                new window.Parabola(0.05, 0.1, 2.95)];
-console.log(window.Parabola.getRegions(parabols))
-var things = window.Parabola.getRegions(parabols);
-console.log(things);
-/*
-renderer.drawParabolaSegment(parabols[0], things[0], things[1]);
-renderer.drawParabolaSegment(parabols[1], things[1], things[2]);
-renderer.drawParabolaSegment(parabols[2], things[2], things[3]);
-renderer.drawParabolaSegment(parabols[3], things[3], things[4]);
-renderer.drawParabolaSegment(parabols[4], things[4], things[5]);
-*/
-/*
-renderer.drawParabola(parabols[1]);
-renderer.drawParabola(parabols[2]);
-renderer.drawParabola(parabols[3]);
-*/
