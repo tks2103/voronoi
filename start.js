@@ -265,7 +265,21 @@
     },
 
     search: function(point) {
-      return this.root.search(point);
+      var nodes = this.serialize(),
+          parabolas = [];
+      for(var i = 0; i < nodes.length; i++) {
+        var pt = nodes[i].data,
+            parabola = window.Parabola.generateFromDirectrixAndFocus(algorithm.sweepLine, pt);
+            parabolas.push(parabola);
+      }
+
+      var roots = window.Parabola.getRegions(parabolas);
+      for(var i = 0; i < roots.length; i++) {
+        if(point.x < roots[i]) {
+          return nodes[i-1];
+        }
+      }
+      throw "couldnt find the node in search";
     },
 
     generateTree: function(node, point) {
@@ -418,6 +432,7 @@
     checkCircleEvent: function(point) {
       var nodes           = this.tree.serialize(),
           potentialNodes  = this.potentialCircleNodes(nodes, point);
+          console.log(potentialNodes, point);
       for(var i = 0; i < potentialNodes.length; i++) {
         var node        = potentialNodes[i],
             segment1    = new exports.Segment(node[0].data, point),
@@ -427,13 +442,14 @@
             line2       = segment2.toLine().perpendicularize().shift_intercept(segment2.midpoint()),
             parabola2   = window.Parabola.generateFromDirectrixAndFocus(point.y, node[1].data);
         var intersection = exports.Line.intersection(line1, line2);
-
         if(intersection.y < parabola1.at(intersection.x) && intersection.y < parabola2.at(intersection.x)) {
           console.log('converging');
           var radius  = exports.Point.distance(intersection, node[0].data);
           var point   = new exports.Point(intersection.x, intersection.y - radius),
               ev      = new exports.Event(point, "circle");
 
+              console.log(point);
+              console.log('inserting');
           this.queue.insert(ev);
           node[0].event = ev;
         } else {
@@ -452,6 +468,7 @@
         this.sweepLine = nextPoint.y;
         if(nextEvent.type == "site") {
           this.tree.insert(nextPoint);
+          paused = true;
           this.checkCircleEvent(nextPoint);
         } else {
           var nodes  = this.tree.serialize(),
@@ -464,15 +481,13 @@
             }
           }
 
-          this.tree.visualize();
-          paused = true;
           this.tree.deleteNode(node);
           this.tree.rebalance();
-          this.tree.visualize();
-          paused = true;
+          console.log('checking', nodes[ind-1].data);
+          console.log('checking', nodes[ind+1].data);
           if(ind > 0) { nodes[ind-1].event = null; this.checkCircleEvent(nodes[ind-1].data); }
           if(ind < nodes.length-1) { nodes[ind+1].event = null; this.checkCircleEvent(nodes[ind+1].data); }
-
+          paused = true;
         }
         this.queue.shift();
       } else {
@@ -486,6 +501,7 @@
 
 
 (function(exports) {
+  var POINT_SIZE = 6;
   var Renderer = function(width, height) {
     var canvas = document.getElementById('canvas');
     this.width = width;
@@ -541,7 +557,7 @@
     drawPoint: function(pt) {
       pt = this.localToWorldCoordinates(pt);
       var ctx = this.getCtx();
-      ctx.fillRect(pt.x, pt.y, 5, 5);
+      ctx.fillRect(pt.x-POINT_SIZE / 2, pt.y-POINT_SIZE / 2, POINT_SIZE, POINT_SIZE);
     },
   };
 
