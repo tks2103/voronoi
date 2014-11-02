@@ -43,8 +43,8 @@
       if(this.isLeaf()) {
         return this;
       } else {
-        var parabola1 = exports.Parabola.generateFromDirectrixAndFocus(point.y, this.data.start);
-        var parabola2 = exports.Parabola.generateFromDirectrixAndFocus(point.y, this.data.end);
+        var parabola1 = Parabola.generateFromDirectrixAndFocus(point.y, this.data.start);
+        var parabola2 = Parabola.generateFromDirectrixAndFocus(point.y, this.data.end);
         var nearestParabola = point.nearestVerticalParabola([parabola1, parabola2]);
         if(nearestParabola == parabola1) {
           return this.left.search(point);
@@ -112,8 +112,8 @@
       var leaf1 = new TreeNode(null, null, null, node.data),
           leaf2 = new TreeNode(null, null, null, point),
           leaf3 = new TreeNode(null, null, null, node.data),
-          inner_node2 = new TreeNode(leaf2, leaf3, null, new exports.Segment(point, node.data)),
-          inner_node1 = new TreeNode(leaf1, inner_node2, null, new exports.Segment(node.data, point));
+          inner_node2 = new TreeNode(leaf2, leaf3, null, new Segment(point, node.data)),
+          inner_node1 = new TreeNode(leaf1, inner_node2, null, new Segment(node.data, point));
 
       leaf1.parent = inner_node1;
       leaf2.parent = inner_node2;

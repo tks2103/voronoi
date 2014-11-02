@@ -61,7 +61,7 @@
     },
 
     at: function(x) {
-      return new exports.Point(x, this.slope * x + this.intercept);
+      return new Point(x, this.slope * x + this.intercept);
     }
   };
 
@@ -77,17 +77,17 @@
 
   Segment.prototype = {
     perpendicularBisector: function() {
-      return new Segment(new exports.Point(this.start.x, this.end.y), new exports.Point(this.end.x, this.start.y));
+      return new Segment(new Point(this.start.x, this.end.y), new Point(this.end.x, this.start.y));
     },
 
     toLine: function() {
       var slope     = (this.end.y - this.start.y) / (1.0 * (this.end.x - this.start.x));
       var intersect = (this.end.y - slope * this.end.x);
-      return new exports.Line(slope, intersect);
+      return new Line(slope, intersect);
     },
 
     midpoint: function() {
-      return new exports.Point( (this.start.x + this.end.x) / 2.0,
+      return new Point( (this.start.x + this.end.x) / 2.0,
                                 (this.start.y + this.end.y) / 2.0 );
     }
   };
@@ -155,12 +155,12 @@
     segments: function(start, end) {
       var i, segs = [];
       for(i = start; i <= end - this.RESOLUTION; i += this.RESOLUTION) {
-        var segment = new exports.Segment(new exports.Point(i, this.at(i)),
-                                          new exports.Point(i + this.RESOLUTION, this.at(i + this.RESOLUTION)))
+        var segment = new Segment(new Point(i, this.at(i)),
+                                          new Point(i + this.RESOLUTION, this.at(i + this.RESOLUTION)))
         segs.push(segment);
       }
-      segs.push(new exports.Segment(new exports.Point(i, this.at(i)),
-                                    new exports.Point(end, this.at(end))));
+      segs.push(new Segment(new Point(i, this.at(i)),
+                                    new Point(end, this.at(end))));
 
       return segs;
     }
