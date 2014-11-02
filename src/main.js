@@ -52,7 +52,7 @@ var loop = function() {
   }
   for(var i = 0; i < segments.length; i++) {
     var segment = segments[i];
-    var line    = segment.toLine().perpendicularize().shift_intercept(segment.midpoint());
+    var line    = segment.toLine().perpendicularize().shiftIntercept(segment.midpoint());
 //    renderer.drawLine(line);
   }
   renderer.drawLine(new Line(0, algorithm.sweepLine));

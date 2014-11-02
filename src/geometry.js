@@ -41,7 +41,7 @@
 
   Line.intersection = function(line1, line2) {
     if(line2.slope - line1.slope == 0) {
-      throw "parallel lines";
+      throw new Error("parallel lines");
     }
     var x = (line1.intercept - line2.intercept) / (line2.slope - line1.slope);
 
@@ -50,13 +50,13 @@
 
   Line.prototype = {
     perpendicularize: function() {
-      if (this.slope == 0) { throw "slope of 0 in perpendicularize"; }
+      if (this.slope == 0) { throw new Error("slope of 0 in perpendicularize"); }
       this.slope = 1 / (-1.0 * this.slope);
       return this;
     },
 
-    shift_intercept: function(point) {
-      this.intercept = (point.y - this.slope * point.x);
+    shiftIntercept: function(point) {
+      this.intercept = (-point.y + this.slope * point.x);
       return this;
     },
 
@@ -76,19 +76,15 @@
   };
 
   Segment.prototype = {
-    perpendicularBisector: function() {
-      return new Segment(new Point(this.start.x, this.end.y), new Point(this.end.x, this.start.y));
-    },
-
     toLine: function() {
-      var slope     = (this.end.y - this.start.y) / (1.0 * (this.end.x - this.start.x));
-      var intersect = (this.end.y - slope * this.end.x);
+      var slope     = (this.end.y - this.start.y) / (1.0 * (this.end.x - this.start.x)),
+          intersect = (this.end.y - slope * this.end.x);
       return new Line(slope, intersect);
     },
 
     midpoint: function() {
       return new Point( (this.start.x + this.end.x) / 2.0,
-                                (this.start.y + this.end.y) / 2.0 );
+                        (this.start.y + this.end.y) / 2.0 );
     }
   };
 

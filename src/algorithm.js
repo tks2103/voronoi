@@ -45,10 +45,10 @@
       for(var i = 0; i < potentialNodes.length; i++) {
         var node        = potentialNodes[i],
             segment1    = new Segment(node[0].data, point),
-            line1       = segment1.toLine().perpendicularize().shift_intercept(segment1.midpoint()),
+            line1       = segment1.toLine().perpendicularize().shiftIntercept(segment1.midpoint()),
             parabola1   = window.Parabola.generateFromDirectrixAndFocus(directrix, node[0].data),
             segment2    = new Segment(node[1].data, point),
-            line2       = segment2.toLine().perpendicularize().shift_intercept(segment2.midpoint()),
+            line2       = segment2.toLine().perpendicularize().shiftIntercept(segment2.midpoint()),
             parabola2   = window.Parabola.generateFromDirectrixAndFocus(directrix, node[1].data);
         var intersection = Line.intersection(line1, line2);
         var dist1 = intersection.y - parabola1.at(intersection.x),
