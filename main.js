@@ -1,5 +1,3 @@
-'use strict';
-
 (function(exports) {
   var Point = function(x, y) {
     this.x = x;
@@ -171,6 +169,54 @@
   exports.Parabola = Parabola;
 })(this);
 
+(function(exports) {
+  var Event = function(point, type) {
+    this.point = point;
+    this.type = type;
+  };
+
+  Event.convertPoints = function(points) {
+    return points.map(function(point) { return new Event(point, "site") });
+  };
+
+  var PriorityQueue = function(events) {
+    var events = typeof events !== 'undefined' ? events : [];
+    this.queue = events;
+    this.sort();
+  };
+
+  PriorityQueue.prototype = {
+    sort: function() {
+      this.queue.sort(function(a, b) { return b.point.y - a.point.y; });
+    },
+
+    insert: function(event) {
+      this.queue.push(event);
+      this.sort();
+    },
+
+    nextEvent: function() {
+      return this.queue[0];
+    },
+
+    shift: function() {
+      this.queue.shift();
+    },
+
+    deleteEvent: function(event) {
+      if(this.queue.indexOf(event) >= 0) {
+        this.queue.splice(this.queue.indexOf(event), 0);
+      }
+    },
+
+    points: function() {
+      return this.queue.map(function(item) { return item.point; });
+    }
+  };
+
+  exports.PriorityQueue = PriorityQueue;
+  exports.Event         = Event;
+})(this);
 
 (function(exports) {
   var TreeNode  = function(left, right, parent, data) {
@@ -302,8 +348,14 @@
         return;
       }
       var insertNode = this.search(point),
-          newTree = this.generateTree(insertNode, point);
+          newTree = this.generateTree(insertNode, point),
+          event = null;
+      if(insertNode.event != null) {
+        event = insertNode.event;
+        insertNode.event = null;
+      }
       insertNode.insert(newTree);
+      return event;
     },
 
     visualize: function() {
@@ -343,51 +395,6 @@
   exports.Tree = Tree;
 })(this);
 
-
-(function(exports) {
-  var Event = function(point, type) {
-    this.point = point;
-    this.type = type;
-  };
-
-  Event.convertPoints = function(points) {
-    return points.map(function(point) { return new Event(point, "site") });
-  };
-
-  var PriorityQueue = function(events) {
-    var events = typeof events !== 'undefined' ? events : [];
-    this.queue = events;
-    this.sort();
-  };
-
-  PriorityQueue.prototype = {
-    sort: function() {
-      this.queue.sort(function(a, b) { return b.point.y - a.point.y; });
-    },
-
-    insert: function(event) {
-      this.queue.push(event);
-      this.sort();
-    },
-
-    nextEvent: function() {
-      return this.queue[0];
-    },
-
-    shift: function() {
-      this.queue.shift();
-    },
-
-    points: function() {
-      return this.queue.map(function(item) { return item.point; });
-    }
-  };
-
-  exports.PriorityQueue = PriorityQueue;
-  exports.Event         = Event;
-})(this);
-
-
 (function(exports) {
   var TOP = 10;
   var RESOLUTION = 0.1;
@@ -396,8 +403,8 @@
     for(var i = 0; i < num; i++) {
       points.push(new Point(Math.random() * TOP * 2 - TOP, Math.random() * TOP * 2 - TOP + 5));
     }
-    return [new Point(4.09, -1.46), new Point(-1.24, 6.45), new Point(-0.07, -.937)];
-//    return points;
+    //return [new Point(4.09, -1.46), new Point(-1.24, 6.45), new Point(-0.07, -.937)];
+    return points;
   };
 
   var Algorithm = function(numPoints) {
@@ -429,31 +436,28 @@
       }
     },
 
-    checkCircleEvent: function(point) {
+    checkCircleEvent: function(point, directrix) {
       var nodes           = this.tree.serialize(),
           potentialNodes  = this.potentialCircleNodes(nodes, point);
-          console.log(potentialNodes, point);
       for(var i = 0; i < potentialNodes.length; i++) {
         var node        = potentialNodes[i],
             segment1    = new exports.Segment(node[0].data, point),
             line1       = segment1.toLine().perpendicularize().shift_intercept(segment1.midpoint()),
-            parabola1   = window.Parabola.generateFromDirectrixAndFocus(point.y, node[0].data),
+            parabola1   = window.Parabola.generateFromDirectrixAndFocus(directrix, node[0].data),
             segment2    = new exports.Segment(node[1].data, point),
             line2       = segment2.toLine().perpendicularize().shift_intercept(segment2.midpoint()),
-            parabola2   = window.Parabola.generateFromDirectrixAndFocus(point.y, node[1].data);
+            parabola2   = window.Parabola.generateFromDirectrixAndFocus(directrix, node[1].data);
         var intersection = exports.Line.intersection(line1, line2);
+        var dist1 = intersection.y - parabola1.at(intersection.x),
+            dist2 = intersection.y - parabola2.at(intersection.x);
         if(intersection.y < parabola1.at(intersection.x) && intersection.y < parabola2.at(intersection.x)) {
-          console.log('converging');
           var radius  = exports.Point.distance(intersection, node[0].data);
           var point   = new exports.Point(intersection.x, intersection.y - radius),
               ev      = new exports.Event(point, "circle");
 
-              console.log(point);
-              console.log('inserting');
           this.queue.insert(ev);
           node[0].event = ev;
         } else {
-          console.log('diverging');
         }
       }
     },
@@ -467,9 +471,11 @@
       if(this.sweepLine - RESOLUTION < nextPoint.y) {
         this.sweepLine = nextPoint.y;
         if(nextEvent.type == "site") {
-          this.tree.insert(nextPoint);
-          paused = true;
-          this.checkCircleEvent(nextPoint);
+          var ev = this.tree.insert(nextPoint);
+          if(ev !== null) {
+            this.queue.deleteEvent(ev);
+          }
+          this.checkCircleEvent(nextPoint, this.sweepLine);
         } else {
           var nodes  = this.tree.serialize(),
               node, ind;
@@ -483,11 +489,8 @@
 
           this.tree.deleteNode(node);
           this.tree.rebalance();
-          console.log('checking', nodes[ind-1].data);
-          console.log('checking', nodes[ind+1].data);
-          if(ind > 0) { nodes[ind-1].event = null; this.checkCircleEvent(nodes[ind-1].data); }
-          if(ind < nodes.length-1) { nodes[ind+1].event = null; this.checkCircleEvent(nodes[ind+1].data); }
-          paused = true;
+          if(ind > 0) { nodes[ind-1].event = null; this.checkCircleEvent(nodes[ind-1].data, this.sweepLine); }
+          if(ind < nodes.length-1) { nodes[ind+1].event = null; this.checkCircleEvent(nodes[ind+1].data, this.sweepLine); }
         }
         this.queue.shift();
       } else {
@@ -498,7 +501,6 @@
 
   exports.Algorithm = Algorithm;
 })(this);
-
 
 (function(exports) {
   var POINT_SIZE = 6;
@@ -564,9 +566,10 @@
   exports.Renderer = Renderer;
 })(this);
 
+'use strict';
 
 var renderer = new window.Renderer(800, 600),
-    algorithm = new window.Algorithm(3),
+    algorithm = new window.Algorithm(9),
     paused = false;
 
 document.addEventListener('keydown', function(event) {
@@ -618,7 +621,7 @@ var loop = function() {
   for(var i = 0; i < segments.length; i++) {
     var segment = segments[i];
     var line    = segment.toLine().perpendicularize().shift_intercept(segment.midpoint());
-   // renderer.drawLine(line);
+//    renderer.drawLine(line);
   }
   renderer.drawLine(new window.Line(0, algorithm.sweepLine));
   renderer.drawLine(new window.Line(0, 0));
