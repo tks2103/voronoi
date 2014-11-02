@@ -12,8 +12,8 @@
 
   var Algorithm = function(numPoints) {
     var points      = generatePoints(numPoints);
-    this.tree       = new exports.Tree();
-    this.queue      = new exports.PriorityQueue(exports.Event.convertPoints(points));
+    this.tree       = new Tree();
+    this.queue      = new PriorityQueue(Event.convertPoints(points));
     this.sweepLine  = TOP;
   };
 
@@ -44,19 +44,19 @@
           potentialNodes  = this.potentialCircleNodes(nodes, point);
       for(var i = 0; i < potentialNodes.length; i++) {
         var node        = potentialNodes[i],
-            segment1    = new exports.Segment(node[0].data, point),
+            segment1    = new Segment(node[0].data, point),
             line1       = segment1.toLine().perpendicularize().shift_intercept(segment1.midpoint()),
             parabola1   = window.Parabola.generateFromDirectrixAndFocus(directrix, node[0].data),
-            segment2    = new exports.Segment(node[1].data, point),
+            segment2    = new Segment(node[1].data, point),
             line2       = segment2.toLine().perpendicularize().shift_intercept(segment2.midpoint()),
             parabola2   = window.Parabola.generateFromDirectrixAndFocus(directrix, node[1].data);
-        var intersection = exports.Line.intersection(line1, line2);
+        var intersection = Line.intersection(line1, line2);
         var dist1 = intersection.y - parabola1.at(intersection.x),
             dist2 = intersection.y - parabola2.at(intersection.x);
         if(intersection.y < parabola1.at(intersection.x) && intersection.y < parabola2.at(intersection.x)) {
-          var radius  = exports.Point.distance(intersection, node[0].data);
-          var point   = new exports.Point(intersection.x, intersection.y - radius),
-              ev      = new exports.Event(point, "circle");
+          var radius  = Point.distance(intersection, node[0].data);
+          var point   = new Point(intersection.x, intersection.y - radius),
+              ev      = new Event(point, "circle");
 
           this.queue.insert(ev);
           node[0].event = ev;
@@ -72,13 +72,13 @@
 
       var nextPoint = nextEvent.point;
       if(this.sweepLine - RESOLUTION < nextPoint.y) {
-        this.sweepLine = nextPoint.y;
+        this.sweepLine = nextPoint.y - RESOLUTION / 2.0;
         if(nextEvent.type == "site") {
           var ev = this.tree.insert(nextPoint);
           if(ev !== null) {
             this.queue.deleteEvent(ev);
           }
-          this.checkCircleEvent(nextPoint, this.sweepLine);
+          this.checkCircleEvent(nextPoint, nextPoint.y);
         } else {
           var nodes  = this.tree.serialize(),
               node, ind;
@@ -92,8 +92,8 @@
 
           this.tree.deleteNode(node);
           this.tree.rebalance();
-          if(ind > 0) { nodes[ind-1].event = null; this.checkCircleEvent(nodes[ind-1].data, this.sweepLine); }
-          if(ind < nodes.length-1) { nodes[ind+1].event = null; this.checkCircleEvent(nodes[ind+1].data, this.sweepLine); }
+          if(ind > 0) { nodes[ind-1].event = null; this.checkCircleEvent(nodes[ind-1].data, nextPoint.y); }
+          if(ind < nodes.length-1) { nodes[ind+1].event = null; this.checkCircleEvent(nodes[ind+1].data, nextPoint.y); }
         }
         this.queue.shift();
       } else {
